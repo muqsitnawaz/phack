@@ -1,0 +1,7 @@
+{
+	"ip": "localhost",
+  "port": 8080,
+  "drop_tables": "False",
+  "create_tables": "False"
+}
+
