@@ -1,2 +1,3 @@
-DEBUG : 13:53:54	MainThread@load_config:	Config file loaded.
-DEBUG : 13:53:54	MainThread@init_database:	Database setup successfull.
+DEBUG : 15:28:08	MainThread@load_config:	Config file loaded.
+DEBUG : 15:28:08	MainThread@init_database:	Database setup successfull.
+DEBUG : 15:28:08	Thread-1@run:	Watch thread started.

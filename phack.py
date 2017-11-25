@@ -1,10 +1,14 @@
+from watchdog.observers import Observer  
+from watchdog.events import PatternMatchingEventHandler
 import http.server
 import psycopg2
 import logging
 import threading
 import json
-import tables
+import time
 import os
+
+import tables
 
 # Globals
 logger = None
@@ -68,26 +72,40 @@ def init_database():
 	finally:
 		logger.debug('Database setup successfull.')
 
-class ServerThread(threading.Thread):
+class NewExploitHandler(PatternMatchingEventHandler):
+	pattern = [".*"]
+
+	def on_created(self, e):
+		logger.debug(e.src_path + ' was created.')
+		print('Debug:', e.src_path)
+
+class WatchThread(threading.Thread):
 	def __init__(self):
 		threading.Thread.__init__(self)
-		self.ip = config["ip"]
-		self.port = int(config["port"])
 	def run(self):
-		handler = http.server.SimpleHTTPRequestHandler
-		httpd = http.server.HTTPServer((self.ip, self.port), handler)
-		print("Serving at port", self.port)
-		httpd.serve_forever()
-		logger.debug('Server setup successfull.')
+		global config
+		observer = Observer()
+		observer.schedule(NewExploitHandler(), config["exploits_dir"])
+		observer.start()
+	
+		logger.debug('Watch thread started.')	
+		print("Watch thread started.")
 
-serv = None
-def init_server():
-	serv = ServerThread()
-	serv.start()
+		try:
+			while True:
+				time.sleep(1)
+		except KeyboardInterrupt:
+			observer.stop()
+
+		observer.join()
+
+def init_watch():
+	wthread = WatchThread()
+	wthread.start()
 
 if __name__ == '__main__':
 	setup_logger()
 	load_config()
 	init_database()
-	init_server()
+	init_watch()
 	print('Done.')
