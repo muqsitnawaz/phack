@@ -1,6 +1,7 @@
 from watchdog.observers import Observer  
 from watchdog.events import PatternMatchingEventHandler
 from datetime import datetime
+from subprocess import Popen, PIPE
 import http.server
 import psycopg2
 import logging
@@ -75,9 +76,8 @@ class NewExploitHandler(PatternMatchingEventHandler):
 	pattern = [".*"]
 
 	def on_created(self, e):
-		global db_conn
 		logger.debug(e.src_path + ' was created.')
-		print('Debug:', e.src_path)
+		print('Debug [New Exploit]: ', e.src_path)
 
 		# Uploading to database
 		try:
@@ -96,12 +96,12 @@ class NewExploitHandler(PatternMatchingEventHandler):
 		
 
 class WatchThread(threading.Thread):
-	def __init__(self):
+	def __init__(self, exploits_dir):
 		threading.Thread.__init__(self)
+		self.exploits_dir = exploits_dir
 	def run(self):
-		global config
 		observer = Observer()
-		observer.schedule(NewExploitHandler(), config["exploits_dir"])
+		observer.schedule(NewExploitHandler(), self.exploits_dir)
 		observer.start()
 	
 		logger.debug('Watch thread started.')	
@@ -115,13 +115,48 @@ class WatchThread(threading.Thread):
 
 		observer.join()
 
-def init_watch():
-	wthread = WatchThread()
-	wthread.start()
+class SchedulerThread(threading.Thread):
+	def __init__(self, round_dur):
+		threading.Thread.__init__(self)
+		self.round_dur = int(round_dur)
+		self.procs = []
+
+	def run_exploits(self):
+		logger.debug('Running exploits')
+		print('Running exploits')
+
+		# Quering database for exploits
+		cur = db_conn.cursor()
+		cur.execute("SELECT name FROM exploits WHERE enabled='t';")
+		exploits = cur.fetchall()
+		print('Debug [Enabled Exploits]: ',exploits)
+		cur.close()
+
+
+		# Running exploits
+		for ename in exploits:
+			proc = Popen(["./exploits/"+ename[0]], stdout=PIPE, stderr=PIPE)
+			self.procs.append(proc)
+
+		time.sleep(2)
+		for proc in self.procs:
+			print('Debug [Exploit pid]: ', proc.pid)
+			print('\t'+str(proc.stdout.read(), "utf-8"))
+			
+	def run(self):
+		print("Scheduler thread started.")
+		while True:
+			time.sleep(self.round_dur)
+			self.run_exploits()
 
 if __name__ == '__main__':
 	setup_logger()
 	load_config()
 	init_database()
-	init_watch()
+	
+	wthread = WatchThread(config["exploits_dir"])
+	wthread.start()
+
+	sthread = SchedulerThread(config["round_dur"])
+	sthread.start()
 	print('Done.')

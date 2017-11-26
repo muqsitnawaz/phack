@@ -1,6 +1,7 @@
 {
-  "drop_tables": "False",
-  "create_tables": "False",
-	"exploits_dir": "./exploits"
+  "drop_tables": "True",
+  "create_tables": "True",
+	"exploits_dir": "./exploits",
+	"round_dur": "5"
 }
 
