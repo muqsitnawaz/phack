@@ -23,7 +23,7 @@ def setup_logger():
 	logger.setLevel('DEBUG')
 	filehandler_dbg = logging.FileHandler(logger.name + '-debug.log', mode='w')
 	filehandler_dbg.setLevel('DEBUG')
-	streamformatter = logging.Formatter(fmt='%(levelname)s\t:\t%(asctime)s\tt%(threadName)s@%(funcName)s:\t\t%(message)s', datefmt='%H:%M:%S')
+	streamformatter = logging.Formatter(fmt='%(levelname)s\t: %(asctime)s %(threadName)s@%(funcName)s:\t\t%(message)s', datefmt='%H:%M:%S')
 	filehandler_dbg.setFormatter(streamformatter)
 	logger.addHandler(filehandler_dbg)
 
@@ -81,7 +81,7 @@ class NewExploitHandler(PatternMatchingEventHandler):
 
 		# Uploading to database
 		try:
-			sql = """INSERT INTO exploits(name, enabled, created_at) VALUES(%s,%s,%s);"""
+			sql = """INSERT INTO exploits (name, enabled, created_at) VALUES (%s,%s,%s);"""
 			name = e.src_path[e.src_path.rfind('/')+1:]
 			dt = datetime.now()
 			cur = db_conn.cursor()
@@ -120,9 +120,13 @@ class SchedulerThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.round_dur = int(round_dur)
 		self.procs = []
+		self.round_id = 0
 
 	def run_exploits(self):
-		logger.debug('Running exploits')
+		# Incr round id
+		self.round_id += 1
+
+		logger.debug('Running exploits in round ' + str(self.round_id))
 
 		# Quering database for exploits
 		cur = db_conn.cursor()
@@ -138,9 +142,9 @@ class SchedulerThread(threading.Thread):
 			# Query database for exploits
 			try:
 				start_at = datetime.now()
-				sql = """INSERT INTO traces(name, start_at) VALUES(%s,%s);"""
+				sql = """INSERT INTO traces (round, name, start_at) VALUES (%s,%s,%s);"""
 				cur = db_conn.cursor()
-				cur.execute(sql, (ename[0], start_at, ))
+				cur.execute(sql, (self.round_id, ename[0], start_at))
 				cur.close()
 				db_conn.commit()	
 			except (Exception, psycopg2.DatabaseError) as error:
@@ -153,7 +157,7 @@ class SchedulerThread(threading.Thread):
 			self.procs.append((proc, start_at))
 	
 	def kill_exploits(self):
-		logger.debug('Killing Exploits')
+		logger.debug('Killing exploits from round ' + str(self.round_id))
 
 		# Get exploits from last round
 		for proc_exec in self.procs:
@@ -179,7 +183,7 @@ class SchedulerThread(threading.Thread):
 			try:
 				sql = """UPDATE traces SET stdout = %s, stderr = %s WHERE start_at = %s;"""
 				cur = db_conn.cursor()
-				cur.execute(sql, (eout, eerr, start_at, ))
+				cur.execute(sql, (eout, eerr, start_at))
 				cur.close()
 				db_conn.commit()
 			except (Exception, psycopg2.DatabaseError) as error:
