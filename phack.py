@@ -1,5 +1,6 @@
 from watchdog.observers import Observer  
 from watchdog.events import PatternMatchingEventHandler
+from datetime import datetime
 import http.server
 import psycopg2
 import logging
@@ -21,7 +22,7 @@ def setup_logger():
 	logger.setLevel('DEBUG')
 	filehandler_dbg = logging.FileHandler(logger.name + '-debug.log', mode='w')
 	filehandler_dbg.setLevel('DEBUG')
-	streamformatter = logging.Formatter(fmt='%(levelname)s : %(asctime)s\t%(threadName)s@%(funcName)s:\t%(message)s', datefmt='%H:%M:%S')
+	streamformatter = logging.Formatter(fmt='%(levelname)s\t:\t%(asctime)s\tt%(threadName)s@%(funcName)s:\t\t%(message)s', datefmt='%H:%M:%S')
 	filehandler_dbg.setFormatter(streamformatter)
 	logger.addHandler(filehandler_dbg)
 
@@ -31,9 +32,8 @@ def load_config():
 		config = json.load(open(os.getcwd()+"/config.json"))
 	except (Exception) as error:
 		logger.warning(error)
-		print(error)
 	finally:
-		logger.debug("Config file loaded.")
+		logger.info("Config file loaded.")
 
 def init_database():
 	""" Connect to the PostgreSQL database server """
@@ -68,16 +68,32 @@ def init_database():
 		db_conn.commit()
 	except (Exception, psycopg2.DatabaseError) as error:
 		logger.warning(error)
-		print(error)
 	finally:
-		logger.debug('Database setup successfull.')
+		logger.info('Database setup successfull.')
 
 class NewExploitHandler(PatternMatchingEventHandler):
 	pattern = [".*"]
 
 	def on_created(self, e):
+		global db_conn
 		logger.debug(e.src_path + ' was created.')
 		print('Debug:', e.src_path)
+
+		# Uploading to database
+		try:
+			sql = """INSERT INTO exploits(name, enabled, created_at) VALUES(%s,%s,%s);"""
+			name = e.src_path[e.src_path.rfind('/')+1:]
+			dt = datetime.now()
+			cur = db_conn.cursor()
+			cur.execute(sql, (name, 't', dt, ))
+			cur.close()
+			db_conn.commit()
+		except (Exception, psycopg2.DatabaseError) as error:
+			logger.warning(error)
+			print(error)
+		finally:
+			logger.info('Exploit ' + e.src_path + ' uploaded to database')
+		
 
 class WatchThread(threading.Thread):
 	def __init__(self):

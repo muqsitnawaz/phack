@@ -1,3 +1,5 @@
-DEBUG : 15:28:08	MainThread@load_config:	Config file loaded.
-DEBUG : 15:28:08	MainThread@init_database:	Database setup successfull.
-DEBUG : 15:28:08	Thread-1@run:	Watch thread started.
+INFO	:	16:13:29	tMainThread@load_config:		Config file loaded.
+INFO	:	16:13:29	tMainThread@init_database:		Database setup successfull.
+DEBUG	:	16:13:29	tThread-1@run:		Watch thread started.
+DEBUG	:	16:13:33	tThread-2@on_created:		./exploits/hello4 was created.
+INFO	:	16:13:34	tThread-2@on_created:		Exploit ./exploits/hello4 uploaded to database
