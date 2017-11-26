@@ -25,7 +25,7 @@ def create_commands():
         """,
         """
         CREATE TABLE traces (
-                exec_id INTEGER PRIMARY KEY,
+                exec_id SERIAL PRIMARY KEY,
                 name VARCHAR(10) NOT NULL,
                 start_at TIMESTAMP,
                 end_at TIMESTAMP,

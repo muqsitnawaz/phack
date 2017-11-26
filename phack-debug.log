@@ -1,9 +1,26 @@
-INFO	:	17:35:55	tMainThread@load_config:		Config file loaded.
-INFO	:	17:35:55	tMainThread@init_database:		Database setup successfull.
-DEBUG	:	17:35:55	tThread-1@run:		Watch thread started.
-DEBUG	:	17:35:58	tThread-2@on_created:		./exploits/exploit was created.
-INFO	:	17:35:58	tThread-2@on_created:		Exploit ./exploits/exploit uploaded to database
-DEBUG	:	17:36:00	tThread-5@run_exploits:		Running exploits
-DEBUG	:	17:36:07	tThread-5@run_exploits:		Running exploits
-DEBUG	:	17:36:14	tThread-5@run_exploits:		Running exploits
-DEBUG	:	17:36:21	tThread-5@run_exploits:		Running exploits
+INFO	:	18:36:01	tMainThread@load_config:		Config file loaded.
+INFO	:	18:36:01	tMainThread@init_database:		Database setup successfull.
+DEBUG	:	18:36:01	tThread-1@run:		Watch thread started.
+DEBUG	:	18:36:06	tThread-5@kill_exploits:		Killing Exploits
+DEBUG	:	18:36:06	tThread-5@run_exploits:		Running exploits
+DEBUG	:	18:36:08	tThread-2@on_created:		./exploits/exploit was created.
+INFO	:	18:36:08	tThread-2@on_created:		Exploit ./exploits/exploit uploaded to database
+DEBUG	:	18:36:11	tThread-5@kill_exploits:		Killing Exploits
+DEBUG	:	18:36:11	tThread-5@run_exploits:		Running exploits
+INFO	:	18:36:11	tThread-5@run_exploits:		Execution entry inserted in database.
+DEBUG	:	18:36:16	tThread-5@kill_exploits:		Killing Exploits
+DEBUG	:	18:36:16	tThread-5@kill_exploits:		Exploit: ./exploits/exploit
+DEBUG	:	18:36:16	tThread-5@kill_exploits:			stdout: Hello, World!
+
+DEBUG	:	18:36:16	tThread-5@kill_exploits:			stderr: 
+INFO	:	18:36:16	tThread-5@kill_exploits:		Execution entry updated in database.
+DEBUG	:	18:36:16	tThread-5@run_exploits:		Running exploits
+INFO	:	18:36:16	tThread-5@run_exploits:		Execution entry inserted in database.
+DEBUG	:	18:36:21	tThread-5@kill_exploits:		Killing Exploits
+DEBUG	:	18:36:21	tThread-5@kill_exploits:		Exploit: ./exploits/exploit
+DEBUG	:	18:36:21	tThread-5@kill_exploits:			stdout: Hello, World!
+
+DEBUG	:	18:36:21	tThread-5@kill_exploits:			stderr: 
+INFO	:	18:36:21	tThread-5@kill_exploits:		Execution entry updated in database.
+DEBUG	:	18:36:21	tThread-5@run_exploits:		Running exploits
+INFO	:	18:36:21	tThread-5@run_exploits:		Execution entry inserted in database.

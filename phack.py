@@ -123,7 +123,6 @@ class SchedulerThread(threading.Thread):
 
 	def run_exploits(self):
 		logger.debug('Running exploits')
-		print('Running exploits')
 
 		# Quering database for exploits
 		cur = db_conn.cursor()
@@ -132,21 +131,68 @@ class SchedulerThread(threading.Thread):
 		print('Debug [Enabled Exploits]: ',exploits)
 		cur.close()
 
-
 		# Running exploits
 		for ename in exploits:
 			proc = Popen(["./exploits/"+ename[0]], stdout=PIPE, stderr=PIPE)
-			self.procs.append(proc)
-
-		time.sleep(2)
-		for proc in self.procs:
-			print('Debug [Exploit pid]: ', proc.pid)
-			print('\t'+str(proc.stdout.read(), "utf-8"))
 			
+			# Query database for exploits
+			try:
+				start_at = datetime.now()
+				sql = """INSERT INTO traces(name, start_at) VALUES(%s,%s);"""
+				cur = db_conn.cursor()
+				cur.execute(sql, (ename[0], start_at, ))
+				cur.close()
+				db_conn.commit()	
+			except (Exception, psycopg2.DatabaseError) as error:
+				logger.warning(error)
+				print(error)
+			finally:
+				logger.info('Execution entry inserted in database.')
+			
+			# Add to processes list
+			self.procs.append((proc, start_at))
+	
+	def kill_exploits(self):
+		logger.debug('Killing Exploits')
+
+		# Get exploits from last round
+		for proc_exec in self.procs:
+			proc = proc_exec[0]
+			start_at = proc_exec[1]
+			print('Debug [Exploit pid]: ', proc.pid)
+			
+			eout = str(proc.stdout.read(), "utf-8")
+			eerr = str(proc.stderr.read(), "utf-8")
+
+			logger.debug("Exploit: "+proc.args[0])
+			logger.debug("\tstdout: "+eout)
+			logger.debug("\tstderr: "+eerr)
+
+			# Terminate exploits still in execution
+			if proc.poll() != 0:
+				proc.terminate()
+			
+			# Remove exploits from list
+			self.procs.remove(proc_exec)
+
+			# Put execution trace in database
+			try:
+				sql = """UPDATE traces SET stdout = %s, stderr = %s WHERE start_at = %s;"""
+				cur = db_conn.cursor()
+				cur.execute(sql, (eout, eerr, start_at, ))
+				cur.close()
+				db_conn.commit()
+			except (Exception, psycopg2.DatabaseError) as error:
+				logger.warning(error)
+				print(error)
+			finally:
+				logger.info('Execution entry updated in database.')
+
 	def run(self):
 		print("Scheduler thread started.")
 		while True:
 			time.sleep(self.round_dur)
+			self.kill_exploits()
 			self.run_exploits()
 
 if __name__ == '__main__':
@@ -159,4 +205,3 @@ if __name__ == '__main__':
 
 	sthread = SchedulerThread(config["round_dur"])
 	sthread.start()
-	print('Done.')
