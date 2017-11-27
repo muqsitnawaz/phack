@@ -29,7 +29,7 @@ def create_commands():
 								round INT NOT NULL,
                 name VARCHAR(10) NOT NULL,
                 start_at TIMESTAMP,
-                end_at TIMESTAMP,
+                timeout BOOLEAN DEFAULT 'f',
                 stdout VARCHAR(65536),
                 stderr VARCHAR(65536)
         )

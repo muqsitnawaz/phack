@@ -77,7 +77,7 @@ class NewExploitHandler(PatternMatchingEventHandler):
 
 	def on_created(self, e):
 		logger.debug(e.src_path + ' was created.')
-		print('Debug [New Exploit]: ', e.src_path)
+		print('[DEBUG] New exploit: ', e.src_path)
 
 		# Uploading to database
 		try:
@@ -127,17 +127,19 @@ class SchedulerThread(threading.Thread):
 		self.round_id += 1
 
 		logger.debug('Running exploits in round ' + str(self.round_id))
+		print('[DEBUG] Running exploits in round ' + str(self.round_id))
 
 		# Quering database for exploits
 		cur = db_conn.cursor()
 		cur.execute("SELECT name FROM exploits WHERE enabled='t';")
 		exploits = cur.fetchall()
-		print('Debug [Enabled Exploits]: ',exploits)
+		print('[DEBUG] Enabled exploits: ',exploits)
 		cur.close()
 
 		# Running exploits
 		for ename in exploits:
 			proc = Popen(["./exploits/"+ename[0]], stdout=PIPE, stderr=PIPE)
+			start_at = None
 			
 			# Query database for exploits
 			try:
@@ -151,49 +153,58 @@ class SchedulerThread(threading.Thread):
 				logger.warning(error)
 				print(error)
 			finally:
-				logger.info('Execution entry inserted in database.')
+				logger.info('Exploit '+ename[0]+' uploaded to database.')
 			
 			# Add to processes list
 			self.procs.append((proc, start_at))
+			logger.debug(proc.args[0]+' was added to active processes list')
 	
 	def kill_exploits(self):
-		logger.debug('Killing exploits from round ' + str(self.round_id))
+		logger.info('Killing exploits from round ' + str(self.round_id))	
+		print('[DEBUG] Killing exploits from round ' + str(self.round_id))
 
-		# Get exploits from last round
 		for proc_exec in self.procs:
 			proc = proc_exec[0]
 			start_at = proc_exec[1]
-			print('Debug [Exploit pid]: ', proc.pid)
+			timeout = 'f'
 			
+			logger.debug('Analyzing exploit: '+proc.args[0])
+
+			# Terminate exploits still in execution and set flag
+			if proc.poll() != 0:
+				timeout = 't'
+				proc.terminate()
+				logger.info("Terminating process: ("+str(proc.args[0])+", "+str(proc.pid)+")")
+				print('[DEBUG] '+str(proc.args[0])+' timed out.')
+			
+			# Get stdout and stderr
+			ename = proc.args[0]
 			eout = str(proc.stdout.read(), "utf-8")
 			eerr = str(proc.stderr.read(), "utf-8")
-
-			logger.debug("Exploit: "+proc.args[0])
-			logger.debug("\tstdout: "+eout)
-			logger.debug("\tstderr: "+eerr)
-
-			# Terminate exploits still in execution
-			if proc.poll() != 0:
-				proc.terminate()
-			
-			# Remove exploits from list
-			self.procs.remove(proc_exec)
+	
+			logger.debug(ename+"->stdout: "+eout)
+			logger.debug(ename+"->stderr: "+eerr)
 
 			# Put execution trace in database
 			try:
-				sql = """UPDATE traces SET stdout = %s, stderr = %s WHERE start_at = %s;"""
+				sql = """UPDATE traces SET stdout = %s, stderr = %s, timeout = %s WHERE start_at = %s;"""
 				cur = db_conn.cursor()
-				cur.execute(sql, (eout, eerr, start_at))
+				cur.execute(sql, (eout, eerr, timeout, start_at))
 				cur.close()
 				db_conn.commit()
 			except (Exception, psycopg2.DatabaseError) as error:
 				logger.warning(error)
 				print(error)
 			finally:
-				logger.info('Execution entry updated in database.')
+				logger.info('Exploit '+ ename +' execution trace uploaded to database.')
+		
+		# Removing all processes from the list
+		self.procs = []
 
 	def run(self):
+		logger.debug('Scheduler thread started.')	
 		print("Scheduler thread started.")
+
 		while True:
 			time.sleep(self.round_dur)
 			self.kill_exploits()
