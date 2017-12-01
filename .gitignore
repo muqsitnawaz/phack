@@ -1,0 +1,5 @@
+# ignore logs
+*.log
+
+# ignore pyc
+__pycache__
