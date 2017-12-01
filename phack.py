@@ -23,7 +23,10 @@ def setup_logger():
 	logger.setLevel('DEBUG')
 	filehandler_dbg = logging.FileHandler(logger.name + '-debug.log', mode='w')
 	filehandler_dbg.setLevel('DEBUG')
-	streamformatter = logging.Formatter(fmt='%(levelname)s\t: %(asctime)s %(threadName)s@%(funcName)s:\t\t%(message)s', datefmt='%H:%M:%S')
+	streamformatter = logging.Formatter(
+		fmt='%(levelname)s\t: %(asctime)s %(threadName)s@%(funcName)s:\t\t%(message)s', 
+		datefmt='%H:%M:%S'
+	)
 	filehandler_dbg.setFormatter(streamformatter)
 	logger.addHandler(filehandler_dbg)
 
@@ -33,16 +36,19 @@ def load_config():
 		config = json.load(open(os.getcwd()+"/config.json"))
 	except (Exception) as error:
 		logger.warning(error)
+		print(error)
 	finally:
 		logger.info("Config file loaded.")
 
-def init_database():
+def init_database(creds):
 	""" Connect to the PostgreSQL database server """
 	global db_conn
 	try:
 		# connect to the PostgreSQL server
 		print('Connecting to the PostgreSQL database...')
-		db_conn = psycopg2.connect("dbname=ctf user=root password=M$sk3dv1p3r")
+		db_conn = psycopg2.connect("dbname={} user={} password={}".format(
+			creds["dbname"], creds["username"], creds["password"]
+		))
 		cur = db_conn.cursor()
 	
 		# execute a statement
@@ -54,11 +60,11 @@ def init_database():
 		print(db_version)
 
 		# modifying tables
-		if config["drop_tables"] == "True":
+		if config["drop_tables"]:
 			cur.execute(tables.drop_command())
 			print('Dropping tables done.')
 
-		if config["create_tables"] == "True":
+		if config["create_tables"]:
 			commands = tables.create_commands()
 			for command in commands:
 				cur.execute(command)
@@ -77,7 +83,7 @@ class NewExploitHandler(PatternMatchingEventHandler):
 
 	def on_created(self, e):
 		logger.debug(e.src_path + ' was created.')
-		print('[DEBUG] New exploit: ', e.src_path)
+		print('[DEBUG] New exploit: '.format(e.src_path))
 
 		# Uploading to database
 		try:
@@ -92,7 +98,7 @@ class NewExploitHandler(PatternMatchingEventHandler):
 			logger.warning(error)
 			print(error)
 		finally:
-			logger.info('Exploit ' + e.src_path + ' uploaded to database')
+			logger.info('Exploit {} uploaded to database'.format(e.src_path))
 		
 
 class WatchThread(threading.Thread):
@@ -118,7 +124,7 @@ class WatchThread(threading.Thread):
 class SchedulerThread(threading.Thread):
 	def __init__(self, round_dur):
 		threading.Thread.__init__(self)
-		self.round_dur = int(round_dur)
+		self.round_dur = round_dur
 		self.procs = []
 		self.round_id = 0
 
@@ -126,8 +132,8 @@ class SchedulerThread(threading.Thread):
 		# Incr round id
 		self.round_id += 1
 
-		logger.debug('Running exploits in round ' + str(self.round_id))
-		print('[DEBUG] Running exploits in round ' + str(self.round_id))
+		logger.debug('Running exploits in round {}'.format(self.round_id))
+		print('[DEBUG] Running exploits in round {}'.format(self.round_id))
 
 		# Quering database for exploits
 		cur = db_conn.cursor()
@@ -160,22 +166,22 @@ class SchedulerThread(threading.Thread):
 			logger.debug(proc.args[0]+' was added to active processes list')
 	
 	def kill_exploits(self):
-		logger.info('Killing exploits from round ' + str(self.round_id))	
-		print('[DEBUG] Killing exploits from round ' + str(self.round_id))
+		logger.info('Killing exploits from round {}'.format(self.round_id))	
+		print('[DEBUG] Killing exploits from round {}'.format(self.round_id))
 
 		for proc_exec in self.procs:
 			proc = proc_exec[0]
 			start_at = proc_exec[1]
 			timeout = 'f'
 			
-			logger.debug('Analyzing exploit: '+proc.args[0])
+			logger.debug('Analyzing exploit: {}'.format(proc.args[0]))
 
 			# Terminate exploits still in execution and set flag
 			if proc.poll() != 0:
 				timeout = 't'
 				proc.terminate()
-				logger.info("Terminating process: ("+str(proc.args[0])+", "+str(proc.pid)+")")
-				print('[DEBUG] '+str(proc.args[0])+' timed out.')
+				logger.info("Terminating process: ({}, {})".format(proc.args[0],proc.pid))
+				print('[DEBUG] Process {} timed out.'.format(proc.args[0]))
 			
 			# Get stdout and stderr
 			ename = proc.args[0]
@@ -196,7 +202,7 @@ class SchedulerThread(threading.Thread):
 				logger.warning(error)
 				print(error)
 			finally:
-				logger.info('Exploit '+ ename +' execution trace uploaded to database.')
+				logger.info('Exploit {} execution trace uploaded to database.'.format(ename))
 		
 		# Removing all processes from the list
 		self.procs = []
@@ -213,7 +219,7 @@ class SchedulerThread(threading.Thread):
 if __name__ == '__main__':
 	setup_logger()
 	load_config()
-	init_database()
+	init_database(config["db_creds"])
 	
 	wthread = WatchThread(config["exploits_dir"])
 	wthread.start()

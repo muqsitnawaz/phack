@@ -1,7 +1,15 @@
 {
-  "drop_tables": "True",
-  "create_tables": "True",
+	"db_creds": {
+		"dbname": "ctf", 
+		"username": "root", 
+		"password": "M$sk3dv1p3r"
+	},
+  "drop_tables": true,
+  "create_tables": true,
 	"exploits_dir": "./exploits",
-	"round_dur": "5"
+	"round_dur": 5,
+	"teams": {
+			"team1": {"ip": "192.168.1.1", "port": 8080}
+	}
 }
 
