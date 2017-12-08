@@ -1,5 +1,5 @@
 #include <iostream>
 
 int main() {
-	std::cerr<< "Fatal Error!\n";
+	std::cout<< "FLAG 123456789\n";
 }

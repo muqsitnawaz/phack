@@ -15,9 +15,12 @@ def create_commands():
         """,
         """ CREATE TABLE flags (
                 flag_id SERIAL PRIMARY KEY,
-                flag VARCHAR(255) NOT NULL,
-                points INT,
-                submitted BOOLEAN NOT NULL DEFAULT 'f',
+								exploit_round INT NOT NULL,
+								exploit_name VARCHAR(255) NOT NULL,
+								exploit_start_at TIMESTAMP NOT NULL,
+                flags VARCHAR(255) NOT NULL,
+                points INT DEFAULT 1,
+                submitted BOOLEAN DEFAULT 'f',
                 created_at TIMESTAMP,
                 submitted_at TIMESTAMP
         )

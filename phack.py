@@ -86,6 +86,7 @@ def load_exploits():
 	for filepath in pathlib.Path(os.getcwd()+'/exploits/').glob('**/*'):
 		files.append(str(filepath.absolute()))
 
+	print("[DEBUG] {} exploits found in /exploits directory.".format(len(files)))
 	rows = list(map(lambda x : (x, True, datetime.now()), files))
 	
 	try:
@@ -171,11 +172,11 @@ class SchedulerThread(threading.Thread):
 				start_at = datetime.now()
 			
 				# Add to processes list
-				self.procs.append((proc, start_at))
+				self.procs.append((proc, start_at, self.round_id))
 				logger.debug('{} was added to active processes list'.format(' '.join(proc.args)))
 
 		# Insert execution trace entry to database
-		rows = list(map(lambda x : (self.round_id, x[0].args[0], ' '.join(x[0].args[1:]), x[1]), self.procs))	
+		rows = list(map(lambda x : (x[2], x[0].args[0], ' '.join(x[0].args[1:]), x[1]), self.procs))	
 		
 		try:
 			sql = """INSERT INTO traces (round, name, args, start_at) VALUES (%s,%s,%s,%s);"""
@@ -194,7 +195,8 @@ class SchedulerThread(threading.Thread):
 		logger.info('Killing exploits from round {}'.format(self.round_id))	
 		print('[DEBUG] Killing exploits from round {}'.format(self.round_id))
 
-		rows = []
+		trc_rows = []
+		flg_rows = []
 		for proc_exec in self.procs:
 			proc = proc_exec[0]
 			start_at = proc_exec[1]
@@ -209,21 +211,32 @@ class SchedulerThread(threading.Thread):
 				logger.info("Terminating process: ({}, {})".format(proc.args[0],proc.pid))
 				print('[DEBUG] Process {} timed out.'.format(proc.args[0]))
 			
-			# Get stdout and stderr
+			# Get data from process
 			ename = proc.args[0]
 			eout = str(proc.stdout.read(), "utf-8")
 			eerr = str(proc.stderr.read(), "utf-8")
-	
+			p = re.compile(config["flag_regex"])
+			flags = p.findall(eout)
+
+			if len(flags) == 0:
+				logger.debug("No flags found...")
+			else:	
+				flg_rows.append((proc_exec[2], ename, start_at, '\n'.join(flags), datetime.now()))
+				logger.debug("Flags: {}".format(flags))
+				print("Flags: {}".format(flags))
+
 			logger.debug(ename+"->stdout: "+eout)
 			logger.debug(ename+"->stderr: "+eerr)
 
-			rows.append((eout, eerr, timeout, start_at))
+			trc_rows.append((eout, eerr, timeout, start_at))
 
-		# Put execution trace in database
+		# Put execution trace and flags in database
 		try:
-			sql = """UPDATE traces SET stdout = %s, stderr = %s, timeout = %s WHERE start_at = %s;"""
 			cur = db_conn.cursor()
-			cur.executemany(sql, rows)
+			sql = """UPDATE traces SET stdout = %s, stderr = %s, timeout = %s WHERE start_at = %s;"""
+			cur.executemany(sql, trc_rows)
+			sql = """INSERT INTO FLAGS (exploit_round, exploit_name, exploit_start_at, flags, created_at) VALUES (%s,%s,%s,%s,%s);"""
+			cur.executemany(sql, flg_rows)
 			cur.close()
 			db_conn.commit()
 		except (Exception, psycopg2.DatabaseError) as error:
