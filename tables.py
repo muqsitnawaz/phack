@@ -8,8 +8,7 @@ def create_commands():
         """
         CREATE TABLE exploits (
             exploit_id SERIAL PRIMARY KEY,
-            name VARCHAR(10) NOT NULL UNIQUE,
-            comment VARCHAR(255),
+            name VARCHAR(255) NOT NULL UNIQUE,
             enabled BOOLEAN NOT NULL DEFAULT 't',
             created_at TIMESTAMP NOT NULL
         )
@@ -27,8 +26,9 @@ def create_commands():
         CREATE TABLE traces (
                 exec_id SERIAL PRIMARY KEY,
 								round INT NOT NULL,
-                name VARCHAR(10) NOT NULL,
+                name VARCHAR(255) NOT NULL,
                 start_at TIMESTAMP,
+								args VARCHAR(255),
                 timeout BOOLEAN DEFAULT 'f',
                 stdout VARCHAR(65536),
                 stderr VARCHAR(65536)

@@ -2,13 +2,14 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 from datetime import datetime
 from subprocess import Popen, PIPE
-import http.server
 import psycopg2
 import logging
 import threading
+import pathlib
 import json
 import time
 import os
+import re
 
 import tables
 
@@ -34,14 +35,14 @@ def load_config():
 	global config
 	try:
 		config = json.load(open(os.getcwd()+"/config.json"))
-	except (Exception) as error:
-		logger.warning(error)
-		print(error)
+	except (ValueError) as error:
+		logger.warning("Config Error: {}".format(error))
+		print("Config Error: {}".format(error))
+		quit()
 	finally:
 		logger.info("Config file loaded.")
 
 def init_database(creds):
-	""" Connect to the PostgreSQL database server """
 	global db_conn
 	try:
 		# connect to the PostgreSQL server
@@ -75,8 +76,30 @@ def init_database(creds):
 		db_conn.commit()
 	except (Exception, psycopg2.DatabaseError) as error:
 		logger.warning(error)
+		print("Database error: {}".format(error))
+		quit()
 	finally:
 		logger.info('Database setup successfull.')
+
+def load_exploits():
+	files = []
+	for filepath in pathlib.Path(os.getcwd()+'/exploits/').glob('**/*'):
+		files.append(str(filepath.absolute()))
+
+	rows = list(map(lambda x : (x, True, datetime.now()), files))
+	
+	try:
+		sql = """INSERT INTO exploits (name, enabled, created_at) VALUES (%s,%s,%s);"""
+		cur = db_conn.cursor()
+		cur.executemany(sql, rows)
+		cur.close()
+		db_conn.commit()	
+	except (Exception, psycopg2.DatabaseError) as error:
+		logger.warning(error)
+		print(error)
+	finally:
+		logger.info('Existing exploits uploaded to database.')
+		print('Existing exploits uploaded to database.')
 
 class NewExploitHandler(PatternMatchingEventHandler):
 	pattern = [".*"]
@@ -88,10 +111,9 @@ class NewExploitHandler(PatternMatchingEventHandler):
 		# Uploading to database
 		try:
 			sql = """INSERT INTO exploits (name, enabled, created_at) VALUES (%s,%s,%s);"""
-			name = e.src_path[e.src_path.rfind('/')+1:]
 			dt = datetime.now()
 			cur = db_conn.cursor()
-			cur.execute(sql, (name, 't', dt, ))
+			cur.execute(sql, (e.src_path, 't', dt, ))
 			cur.close()
 			db_conn.commit()
 		except (Exception, psycopg2.DatabaseError) as error:
@@ -135,40 +157,44 @@ class SchedulerThread(threading.Thread):
 		logger.debug('Running exploits in round {}'.format(self.round_id))
 		print('[DEBUG] Running exploits in round {}'.format(self.round_id))
 
-		# Quering database for exploits
+		# Query database for enabled exploits
 		cur = db_conn.cursor()
 		cur.execute("SELECT name FROM exploits WHERE enabled='t';")
 		exploits = cur.fetchall()
 		print('[DEBUG] Enabled exploits: ',exploits)
 		cur.close()
 
-		# Running exploits
+		# Run exploits
 		for ename in exploits:
-			proc = Popen(["./exploits/"+ename[0]], stdout=PIPE, stderr=PIPE)
-			start_at = None
-			
-			# Query database for exploits
-			try:
+			for team in config["teams"]:
+				proc = Popen([ename[0], team["host"], team["port"]], stdout=PIPE, stderr=PIPE)
 				start_at = datetime.now()
-				sql = """INSERT INTO traces (round, name, start_at) VALUES (%s,%s,%s);"""
-				cur = db_conn.cursor()
-				cur.execute(sql, (self.round_id, ename[0], start_at))
-				cur.close()
-				db_conn.commit()	
-			except (Exception, psycopg2.DatabaseError) as error:
-				logger.warning(error)
-				print(error)
-			finally:
-				logger.info('Exploit '+ename[0]+' uploaded to database.')
 			
-			# Add to processes list
-			self.procs.append((proc, start_at))
-			logger.debug(proc.args[0]+' was added to active processes list')
-	
+				# Add to processes list
+				self.procs.append((proc, start_at))
+				logger.debug('{} was added to active processes list'.format(' '.join(proc.args)))
+
+		# Insert execution trace entry to database
+		rows = list(map(lambda x : (self.round_id, x[0].args[0], ' '.join(x[0].args[1:]), x[1]), self.procs))	
+		
+		try:
+			sql = """INSERT INTO traces (round, name, args, start_at) VALUES (%s,%s,%s,%s);"""
+			cur = db_conn.cursor()
+			cur.executemany(sql, rows)
+			cur.close()
+			db_conn.commit()	
+		except (Exception, psycopg2.DatabaseError) as error:
+			logger.warning(error)
+			print(error)
+		finally:
+			logger.info('Exploits uploaded to database.')
+			
+			
 	def kill_exploits(self):
 		logger.info('Killing exploits from round {}'.format(self.round_id))	
 		print('[DEBUG] Killing exploits from round {}'.format(self.round_id))
 
+		rows = []
 		for proc_exec in self.procs:
 			proc = proc_exec[0]
 			start_at = proc_exec[1]
@@ -191,18 +217,20 @@ class SchedulerThread(threading.Thread):
 			logger.debug(ename+"->stdout: "+eout)
 			logger.debug(ename+"->stderr: "+eerr)
 
-			# Put execution trace in database
-			try:
-				sql = """UPDATE traces SET stdout = %s, stderr = %s, timeout = %s WHERE start_at = %s;"""
-				cur = db_conn.cursor()
-				cur.execute(sql, (eout, eerr, timeout, start_at))
-				cur.close()
-				db_conn.commit()
-			except (Exception, psycopg2.DatabaseError) as error:
-				logger.warning(error)
-				print(error)
-			finally:
-				logger.info('Exploit {} execution trace uploaded to database.'.format(ename))
+			rows.append((eout, eerr, timeout, start_at))
+
+		# Put execution trace in database
+		try:
+			sql = """UPDATE traces SET stdout = %s, stderr = %s, timeout = %s WHERE start_at = %s;"""
+			cur = db_conn.cursor()
+			cur.executemany(sql, rows)
+			cur.close()
+			db_conn.commit()
+		except (Exception, psycopg2.DatabaseError) as error:
+			logger.warning(error)
+			print(error)
+		finally:
+			logger.info('Execution traces updated in database.')
 		
 		# Removing all processes from the list
 		self.procs = []
@@ -220,6 +248,8 @@ if __name__ == '__main__':
 	setup_logger()
 	load_config()
 	init_database(config["db_creds"])
+
+	load_exploits()
 	
 	wthread = WatchThread(config["exploits_dir"])
 	wthread.start()
